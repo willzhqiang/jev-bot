@@ -5,6 +5,7 @@
  */
 export { createSession } from "./runtime.js";
 export type { ComputerSession, SessionOptions } from "./runtime.js";
+export { createChooser, getJevConfigurationStatus } from "./provider.js";
 export { createServer } from "./server.js";
 export type { ReplRuntimePort } from "./server.js";
 export type {
