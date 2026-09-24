@@ -15,6 +15,7 @@ import {
   CallToolResultSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { getJevConfigurationStatus } from "../src/provider.js";
 
 const runFile = promisify(execFile);
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -104,9 +105,10 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
       throw error;
   }
-  if (!process.env.TYPESAFE_API_KEY?.trim())
+  const jev = getJevConfigurationStatus();
+  if (!jev.keyConfigured)
     throw new SmokeFailure(
-      "Skipped: TYPESAFE_API_KEY is missing. No app was launched.",
+      `Skipped: the ${jev.provider} Jev key is missing. No app was launched.`,
     );
 
   const controller = new AbortController();
@@ -125,6 +127,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   const results: Record<string, unknown> = {
     runId,
     startedAt,
+    jev,
     outcome: "failed",
     stages: [],
   };

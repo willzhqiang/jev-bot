@@ -105,6 +105,18 @@ void test("CLI rejects malformed options before starting a desktop connection", 
   }
 });
 
+void test("CLI help documents explicit OpenRouter provider selection", () => {
+  const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+  const result = spawnSync(process.execPath, [cli, "--help"], {
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /JEV_PROVIDER=openrouter/);
+  assert.match(result.stdout, /OPENROUTER_API_KEY/);
+});
+
 void test(
   "CLI accepts an explicit environment file for stdio and reports missing files",
   { timeout: 10_000 },

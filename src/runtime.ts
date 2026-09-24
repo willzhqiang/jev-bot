@@ -16,7 +16,7 @@ import type {
 export interface SessionOptions {
   /** Native desktop adapter. Defaults to a connection opened on first use. */
   driver?: Driver;
-  /** Action chooser. Defaults to TypeSafe Jev, contacted only when needed. */
+  /** Action chooser. Defaults to the configured Jev provider, contacted only when needed. */
   choose?: Choose;
 }
 
@@ -130,7 +130,7 @@ export class LazyDriver implements Driver {
 
 /**
  * Create a local computer-use session without starting a server or reading .env.
- * The native driver and TypeSafe client connect only when a call needs them.
+ * The native driver and configured Jev provider connect only when a call needs them.
  * Close the session when finished, including when an execution fails.
  *
  * @param options Optional native driver and action chooser adapters.

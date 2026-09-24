@@ -4,7 +4,7 @@ import { TypeSafeClient } from "@compootor/effective-jev";
 import { Effect, Layer } from "effect";
 import { FetchHttpClient } from "effect/unstable/http";
 import { z } from "zod";
-import { createChooser } from "../src/provider.js";
+import { createChooser, getJevConfigurationStatus } from "../src/provider.js";
 import type { Observation } from "../src/types.js";
 
 const observation: Observation = {
@@ -90,6 +90,104 @@ void test("effective-jev sends one bounded Choice and redacts secure values", as
   );
   assert.ok(!JSON.stringify(requests).includes("secret-fixture"));
   assert.ok(!JSON.stringify(requests).includes("s1:1"));
+});
+
+void test("OpenRouter sends one bounded Choice and redacts secure values", async () => {
+  const previousProvider = process.env.JEV_PROVIDER;
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  const previousModel = process.env.OPENROUTER_JEV_MODEL;
+  const previousFetch = globalThis.fetch;
+  const requests: Record<string, unknown>[] = [];
+  process.env.JEV_PROVIDER = "openrouter";
+  process.env.OPENROUTER_API_KEY = "fixture-openrouter-key";
+  delete process.env.OPENROUTER_JEV_MODEL;
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, "https://openrouter.ai/api/alpha/decisions");
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.redirect, "error");
+    assert.equal(
+      new Headers(init?.headers).get("authorization"),
+      "Bearer fixture-openrouter-key",
+    );
+    requests.push(
+      (await new Response(init?.body).json()) as Record<string, unknown>,
+    );
+    return choiceResponse({
+      choice: "handoff",
+      confidence: 0.9,
+      probabilities: { handoff: 0.95, done: 0.05 },
+    });
+  };
+  try {
+    const result = await createChooser()(
+      "Do the task",
+      observation,
+      candidates,
+      [],
+    );
+    assert.equal(result.selectedId, "handoff");
+    assert.equal(result.model, "fixture");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0]?.model, "~typesafe/jev-latest");
+    assert.ok(!JSON.stringify(requests).includes("secret-fixture"));
+    assert.ok(!JSON.stringify(requests).includes("s1:1"));
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousProvider === undefined) delete process.env.JEV_PROVIDER;
+    else process.env.JEV_PROVIDER = previousProvider;
+    if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousKey;
+    if (previousModel === undefined) delete process.env.OPENROUTER_JEV_MODEL;
+    else process.env.OPENROUTER_JEV_MODEL = previousModel;
+  }
+});
+
+void test("configuration status identifies OpenRouter without exposing its key", () => {
+  const previousProvider = process.env.JEV_PROVIDER;
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  const previousModel = process.env.OPENROUTER_JEV_MODEL;
+  process.env.JEV_PROVIDER = "openrouter";
+  process.env.OPENROUTER_API_KEY = "status-fixture-secret";
+  process.env.OPENROUTER_JEV_MODEL = "typesafe/jev-1.13";
+  try {
+    const status = getJevConfigurationStatus();
+    assert.deepEqual(status, {
+      provider: "openrouter",
+      keyConfigured: true,
+      model: "typesafe/jev-1.13",
+    });
+    assert.ok(!JSON.stringify(status).includes("status-fixture-secret"));
+  } finally {
+    if (previousProvider === undefined) delete process.env.JEV_PROVIDER;
+    else process.env.JEV_PROVIDER = previousProvider;
+    if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousKey;
+    if (previousModel === undefined) delete process.env.OPENROUTER_JEV_MODEL;
+    else process.env.OPENROUTER_JEV_MODEL = previousModel;
+  }
+});
+
+void test("OpenRouter selection never falls back to a TypeSafe key", async () => {
+  const previousProvider = process.env.JEV_PROVIDER;
+  const previousOpenRouterKey = process.env.OPENROUTER_API_KEY;
+  const previousTypeSafeKey = process.env.TYPESAFE_API_KEY;
+  process.env.JEV_PROVIDER = "openrouter";
+  delete process.env.OPENROUTER_API_KEY;
+  process.env.TYPESAFE_API_KEY = "must-not-be-used";
+  try {
+    await assert.rejects(
+      createChooser()("Task", observation, candidates, []),
+      /OPENROUTER_API_KEY/,
+    );
+  } finally {
+    if (previousProvider === undefined) delete process.env.JEV_PROVIDER;
+    else process.env.JEV_PROVIDER = previousProvider;
+    if (previousOpenRouterKey === undefined)
+      delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousOpenRouterKey;
+    if (previousTypeSafeKey === undefined) delete process.env.TYPESAFE_API_KEY;
+    else process.env.TYPESAFE_API_KEY = previousTypeSafeKey;
+  }
 });
 
 void test("malformed model choices never escape the provider", async () => {

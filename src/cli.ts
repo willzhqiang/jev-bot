@@ -12,6 +12,7 @@ import process from "node:process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { getJevConfigurationStatus } from "./provider.js";
 import { createServer } from "./server.js";
 import { createSession, LazyDriver } from "./runtime.js";
 import { parseCliArguments } from "./cli-options.js";
@@ -19,7 +20,10 @@ import { parseCliArguments } from "./cli-options.js";
 const { command, envFile } = parseCliArguments(process.argv.slice(2));
 if (command === "--help" || command === "-h") {
   console.log(
-    "Usage: jev-bot [stdio|doctor] [--env-file /absolute/path/.env]\nStarts a local MCP server by default. Cua Driver controls native apps; Jev actions also require TYPESAFE_API_KEY.",
+    "Usage: jev-bot [stdio|doctor] [--env-file /absolute/path/.env]\n" +
+      "Starts a local MCP server by default. Cua Driver controls native apps.\n" +
+      "Jev defaults to TypeSafe with TYPESAFE_API_KEY. Set JEV_PROVIDER=openrouter " +
+      "and OPENROUTER_API_KEY to use OpenRouter instead.",
   );
 } else {
   try {
@@ -45,7 +49,9 @@ if (command === "--help" || command === "-h") {
         JSON.stringify(
           {
             driver: "connected",
+            jev: getJevConfigurationStatus(),
             typesafeKeyConfigured: Boolean(process.env.TYPESAFE_API_KEY),
+            openRouterKeyConfigured: Boolean(process.env.OPENROUTER_API_KEY),
             windows,
           },
           null,

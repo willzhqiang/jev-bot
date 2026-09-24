@@ -2,7 +2,7 @@
 
 Control native Mac apps from Codex or ChatGPT desktop through JavaScript that
 remembers its variables between calls. Use element numbers for exact actions,
-or let TypeSafe Jev choose a control from a description.
+or let Jev choose a control from a description through TypeSafe or OpenRouter.
 
 Package name: **`@compootor/jev-bot`** on npm and JSR. Both builds run in
 Node.js 22+ or Bun 1.4.2+. Native desktop control requires macOS.
@@ -27,9 +27,11 @@ unimplemented.
 ## Quick start
 
 You need **macOS**, **Node.js 22+**, and a local MCP client such as Codex.
-MCP is the connection that lets your agent call this tool. A
-[TypeSafe API key](https://docs.typesafe.ai/sdk/javascript) is needed only for Jev
-actions. Reading state and acting on element numbers work without it.
+MCP is the connection that lets your agent call this tool. A Jev provider key is
+needed only for description-based actions. Reading state and acting on element
+numbers work without one. Jev can use either
+[OpenRouter](https://openrouter.ai/typesafe) or
+[TypeSafe](https://docs.typesafe.ai/sdk/javascript).
 
 ### 1. Install Cua Driver and grant access
 
@@ -63,15 +65,25 @@ mkdir -p "$HOME/.config/jev-bot"
 touch "$HOME/.config/jev-bot/.env"
 ```
 
-To enable Jev, edit `~/.config/jev-bot/.env` and set `TYPESAFE_API_KEY` to your key.
-Keep the key out of chat and tool arguments.
+To use OpenRouter, edit `~/.config/jev-bot/.env` and add:
+
+```sh
+JEV_PROVIDER=openrouter
+OPENROUTER_API_KEY=your-key
+OPENROUTER_JEV_MODEL=~typesafe/jev-latest
+```
+
+TypeSafe remains backward compatible: omit `JEV_PROVIDER` or set it to
+`typesafe`, then configure `TYPESAFE_API_KEY`. Keep keys out of chat and tool
+arguments. jev-bot never falls back between providers automatically.
 
 ```sh
 jev-bot doctor --env-file "$HOME/.config/jev-bot/.env"
 ```
 
-A successful check reports `driver: "connected"`, whether a key is configured,
-and the available windows. It does not test the key or perform an action.
+A successful check reports `driver: "connected"`, the selected Jev provider,
+model, whether its key is configured, and the available windows. It does not test
+the key or perform an action.
 
 ### 3. Connect your agent
 
@@ -473,19 +485,25 @@ for `.env` beside the package's `dist` directory, which supports local developme
 Inherited environment variables take precedence. Library imports do not load
 environment files. Restart the MCP connection after configuration changes or rebuilding.
 
-| Variable                 | Default                                        | Purpose                                         |
-| ------------------------ | ---------------------------------------------- | ----------------------------------------------- |
-| `TYPESAFE_API_KEY`       | Unset                                          | Enables description-based actions and `act`.    |
-| `TYPESAFE_DEFAULT_MODEL` | `jev-1.13.0`                                   | TypeSafe model used for decisions.              |
-| `CUA_DRIVER_BIN`         | Installed Mac app, then `cua-driver` on `PATH` | Absolute path to a different driver executable. |
+| Variable                 | Default                                        | Purpose                                                    |
+| ------------------------ | ---------------------------------------------- | ---------------------------------------------------------- |
+| `JEV_PROVIDER`           | `typesafe`                                     | Selects `typesafe` or `openrouter`; no automatic fallback. |
+| `OPENROUTER_API_KEY`     | Unset                                          | OpenRouter credential when that provider is selected.      |
+| `OPENROUTER_JEV_MODEL`   | `~typesafe/jev-latest`                         | OpenRouter TypeSafe Jev model ID.                          |
+| `OPENROUTER_BASE_URL`    | `https://openrouter.ai/api`                    | OpenRouter API root for compatible gateways or tests.      |
+| `TYPESAFE_API_KEY`       | Unset                                          | TypeSafe credential when that provider is selected.        |
+| `TYPESAFE_DEFAULT_MODEL` | `jev-1.13.0`                                   | TypeSafe model used for decisions.                         |
+| `CUA_DRIVER_BIN`         | Installed Mac app, then `cua-driver` on `PATH` | Absolute path to a different driver executable.            |
 
 Each Jev request has an eight-second timeout and no automatic retries. Cancelling
 the call aborts its active request.
 
 Jev requests send the selected window's accessibility text, your goal, available
-action descriptions, and recent decisions to TypeSafe. Text you enter can appear
-in later accessibility reads. Screenshots go to your agent, not Jev. Recognized
-password fields are excluded; other sensitive app content can still be sent.
+action descriptions, and recent decisions to the selected provider. With
+OpenRouter, that adds OpenRouter as an intermediary before TypeSafe. Text you
+enter can appear in later accessibility reads. Screenshots go to your agent, not
+Jev. Recognized password fields are excluded; other sensitive app content can
+still be sent.
 Use this tool with trusted agents. Its JavaScript session is not a security
 sandbox for untrusted code.
 
@@ -517,8 +535,8 @@ node dist/cli.js doctor
 codex mcp add jev-bot -- "$(command -v node)" "$PWD/dist/cli.js"
 ```
 
-Add `TYPESAFE_API_KEY` to `.env` before using Jev. The build generates the server
-version from `package.json`; do not edit `src/version.ts` or `dist`.
+Configure one provider and its key in `.env` before using Jev. The build generates
+the server version from `package.json`; do not edit `src/version.ts` or `dist`.
 
 tsdown builds the JavaScript and declarations. TypeScript 7 uses Effect's TSGo
 patch for typechecking; `npm ci` applies that patch and the matching Oxlint patch
@@ -591,8 +609,9 @@ disposable native form, asks Jev to replace one field and click Submit, then
 checks the exact value and a single click through a separate receipt file.
 It closes its own form and writes results under `.local/native-smoke/`.
 
-A full run makes two paid Jev requests. It never retries input. Without `--live`,
-the command skips without opening an app or calling TypeSafe.
+A full run makes two paid Jev requests through the selected provider. It never
+retries input. Without `--live`, the command skips without opening an app or
+calling a provider.
 
 <details>
 <summary>Validation recorded on 2026-09-19</summary>
@@ -691,7 +710,7 @@ Then configure trusted publishing as above and rerun the same workflow run.
 Later releases use short-lived GitHub OIDC credentials. No long-lived npm or JSR
 publish token is needed. A successful new-version release without `NPM_TOKEN`
 verifies npm trusted publishing; rerunning an existing version does not. The
-native driver and TypeSafe key are also unnecessary for the release checks.
+native driver and provider key are also unnecessary for the release checks.
 
 References: [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/),
 [npm first-publish prerequisite](https://docs.npmjs.com/cli/v11/commands/npm-trust/),
